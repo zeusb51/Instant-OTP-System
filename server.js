@@ -1,12 +1,12 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const WebSocket = require('ws');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, { cors: { origin: "*" } });
-const wss = new WebSocket.Server({ server });
+const io = socketIo(server, {
+    cors: { origin: "*" }
+});
 
 app.use(express.json());
 
@@ -15,6 +15,7 @@ let latestOTPs = {
     DaruhBuri: { login: '', payment: '' }
 };
 
+// Endpoint to receive OTP from Android app or any client
 app.post('/send-otp', (req, res) => {
     const { otp, source, type } = req.body;
 
@@ -22,22 +23,30 @@ app.post('/send-otp', (req, res) => {
 
     if (source && type && latestOTPs[source]) {
         latestOTPs[source][type] = otp;
-
-        // Send to WebSocket clients
-        const message = JSON.stringify({ source, type, otp });
-        wss.clients.forEach(client => {
-            if (client.readyState === WebSocket.OPEN) {
-                client.send(message);
-            }
-        });
-
-        // Optional: keep emitting for Socket.IO clients
         io.emit(`otp-${source}-${type}`, otp);
     }
 
     res.sendStatus(200);
 });
 
-server.listen(3111, '192.168.1.40', () => {
-    console.log('Server running on http://192.168.1.40:3111');
+// WebSocket for extensions or frontend to receive OTPs in real-time
+io.on('connection', (socket) => {
+    console.log('Client connected');
+
+    // Send latest OTPs to newly connected client
+    for (const source in latestOTPs) {
+        for (const type in latestOTPs[source]) {
+            socket.emit(`otp-${source}-${type}`, latestOTPs[source][type]);
+        }
+    }
+
+    socket.on('disconnect', () => {
+        console.log('Client disconnected');
+    });
+});
+
+// Use dynamic port for cloud hosting like Render.com
+const PORT = process.env.PORT || 3111;
+server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
