@@ -41,5 +41,5 @@ app.post('/send-otp', (req, res) => {
 // Use Render's dynamic port assignment
 const PORT = process.env.PORT || 3112;
 server.listen(PORT, () => {
-  console.log(`✅ OTP Server running on port ${PORT}`);
+  console.log(`✅ OTP new!! Server running on port ${PORT}`);
 });
