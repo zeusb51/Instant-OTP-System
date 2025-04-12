@@ -1,58 +1,45 @@
 const express = require('express');
 const http = require('http');
-const socketIo = require('socket.io');
+const WebSocket = require('ws');
 const cors = require('cors');
 
 const app = express();
-const server = http.createServer(app);
-const io = socketIo(server, {
-    cors: { origin: "*" }
-});
-
-app.use(cors());
 app.use(express.json());
+app.use(cors());
 
-let latestOTPs = {
-    MathiBuri: { login: '', payment: '' },
-    DaruhBuri: { login: '', payment: '' }
-};
+// Create plain HTTP server (Render handles HTTPS externally)
+const server = http.createServer(app);
 
-// API endpoint to receive OTP from Android app
+// WebSocket server using same HTTP server
+const wss = new WebSocket.Server({ server });
+
+// Handle WebSocket connections
+wss.on('connection', ws => {
+  console.log('🔌 WebSocket client connected');
+});
+
 app.post('/send-otp', (req, res) => {
-    const { otp, source, type } = req.body;
+  const { otp, source, type, username } = req.body;
+  const userTag = username ? ` (${username})` : '';
+  console.log(`[RECEIVED] OTP: ${otp} | Source: ${source} | Type: ${type}${userTag}`);
 
-    console.log(`==== OTP RECEIVED ====`);
-    console.log(`OTP: ${otp}`);
-    console.log(`Source: ${source}`);
-    console.log(`Type: ${type}`);
-    console.log(`=======================`);
+  if (!otp || !source || !type) {
+    return res.status(400).send("Invalid payload");
+  }
 
-    if (source && type && latestOTPs[source]) {
-        latestOTPs[source][type] = otp;
-        io.emit(`otp-${source}-${type}`, otp);
+  const msg = JSON.stringify({ otp, source, type, username });
+
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(msg);
     }
+  });
 
-    res.sendStatus(200);
+  return res.sendStatus(200);
 });
 
-// WebSocket connection for browser extensions
-io.on('connection', (socket) => {
-    console.log('🔌 Client connected via WebSocket');
-
-    // Send latest OTPs to new client
-    for (const source in latestOTPs) {
-        for (const type in latestOTPs[source]) {
-            socket.emit(`otp-${source}-${type}`, latestOTPs[source][type]);
-        }
-    }
-
-    socket.on('disconnect', () => {
-        console.log('❌ Client disconnected');
-    });
-});
-
-// Use dynamic port for Render
-const PORT = process.env.PORT || 3111;
+// Use Render's dynamic port assignment
+const PORT = process.env.PORT || 3112;
 server.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`✅ OTP Server running on port ${PORT}`);
 });
